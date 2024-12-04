@@ -12,7 +12,7 @@ contract FundMe {
 
     uint256 constant MINIMUM_VALUE = 1 * 10**18; //wei
 
-    AggregatorV3Interface internal dataFeed;
+    AggregatorV3Interface public dataFeed;
 
     uint256 constant TARGET = 1000 * 10**18;
     address public owner;
@@ -21,14 +21,15 @@ contract FundMe {
     uint256 lockTime;
 
     address erc20Addr;
+    event FundWithdrawByOwner(uint256);
+    event RefundByFunder(address,uint256);
 
     bool public getFundSuccess = false;
 
-    constructor(uint256 _lockTime) {
+
+    constructor(uint256 _lockTime, address dataFeedAddr) {
         // sepolia testnet
-        dataFeed = AggregatorV3Interface(
-            0x694AA1769357215DE4FAC081bf1f309aDC325306
-        );
+        dataFeed = AggregatorV3Interface(dataFeedAddr);
         owner = msg.sender;
         deploymentTimestamp = block.timestamp;
         lockTime = _lockTime;
@@ -88,13 +89,16 @@ contract FundMe {
 
         // payable(msg.sender).transfer(address(this).balance);
         bool success;
-        (success, ) = payable(msg.sender).call{value: address(this).balance}(
+        uint256 balance = address(this).balance;
+        (success, ) = payable(msg.sender).call{value: balance}(
             ""
         );
         require(success, "tx failed");
         // fundersToAmount[msg.sender] = 0;
 
         getFundSuccess = true;
+
+        emit FundWithdrawByOwner(balance);
     }
 
     function refund() external windowClosed {
@@ -105,11 +109,14 @@ contract FundMe {
         require(fundersToAmount[msg.sender] != 0, "There is no fund for you.");
 
         bool success;
-        (success, ) = payable(msg.sender).call{value: address(this).balance}(
+        uint256 balance =address(this).balance;
+        (success, ) = payable(msg.sender).call{value: balance}(
             ""
         );
         require(success, "tx failed");
         fundersToAmount[msg.sender] = 0;
+
+        emit RefundByFunder(msg.sender,balance);
     }
 
     modifier windowClosed() {
